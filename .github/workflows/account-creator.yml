@@ -1,0 +1,84 @@
+name: Account Creator
+on:
+  workflow_dispatch:
+    inputs:
+      site:
+        description: 'Site to create account on'
+        required: true
+        type: choice
+        options:
+          - hackernews
+          - devto
+          - reddit
+      username:
+        description: 'Username'
+        required: true
+      email:
+        description: 'Email'
+        required: true
+      password:
+        description: 'Password'
+        required: true
+
+jobs:
+  create-account:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check IP
+        run: curl -s https://httpbin.org/ip
+
+      - name: Setup
+        run: |
+          npm init -y
+          npm install playwright
+          npx playwright install chromium
+
+      - name: Create HN Account
+        if: inputs.site == 'hackernews'
+        env:
+          USERNAME: ${{ inputs.username }}
+          PASSWORD: ${{ inputs.password }}
+        run: |
+          node -e "
+          const { chromium } = require('playwright');
+          (async () => {
+            const browser = await chromium.launch();
+            const page = await browser.newPage();
+            await page.goto('https://news.ycombinator.com/login');
+            await page.screenshot({ path: 'step1.png' });
+
+            // Fill create account section
+            const inputs = await page.locator('input[type=text]').all();
+            const pwInputs = await page.locator('input[type=password]').all();
+            console.log('Text inputs:', inputs.length, 'Password inputs:', pwInputs.length);
+
+            // Create account is the second set of fields
+            if (inputs.length >= 2) {
+              await inputs[1].fill(process.env.USERNAME);
+            }
+            if (pwInputs.length >= 2) {
+              await pwInputs[1].fill(process.env.PASSWORD);
+            }
+
+            await page.screenshot({ path: 'step2.png' });
+
+            // Click create account button
+            const submitBtns = await page.locator('input[value=\"create account\"]').all();
+            if (submitBtns.length > 0) {
+              await submitBtns[0].click();
+            }
+
+            await page.waitForTimeout(5000);
+            await page.screenshot({ path: 'step3.png' });
+            console.log('URL:', page.url());
+            console.log('Content:', (await page.textContent('body')).substring(0, 1000));
+            await browser.close();
+          })().catch(e => { console.error(e); process.exit(1); });
+          "
+
+      - name: Upload Screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: "*.png"
