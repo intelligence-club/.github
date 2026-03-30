@@ -29,15 +29,17 @@ jobs:
 
       - name: Setup
         run: |
-          npm init -y
+          mkdir -p /tmp/work && cd /tmp/work
+          npm init -y --name account-creator
           npm install playwright
-          npx playwright install chromium
+          npx playwright install chromium --with-deps
 
       - name: Create HN Account
         if: inputs.site == 'hackernews'
         env:
           USERNAME: ${{ inputs.username }}
           PASSWORD: ${{ inputs.password }}
+        working-directory: /tmp/work
         run: |
           node -e "
           const { chromium } = require('playwright');
